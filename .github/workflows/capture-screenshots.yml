@@ -1,0 +1,78 @@
+name: Capture Screenshots
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'docs/**/*.md'
+  workflow_dispatch:
+    inputs:
+      file:
+        description: 'Specific markdown file to process (optional)'
+        required: false
+        type: string
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    env:
+      INPUT_FILE: ${{ github.event.inputs.file }}
+      HEAD_REF: ${{ github.head_ref }}
+
+    steps:
+      - name: Checkout docs repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: scripts
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: scripts
+        run: npx playwright install chromium
+
+      - name: Install FFmpeg (for GIFs)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Capture screenshots
+        working-directory: scripts
+        run: |
+          if [ -n "$INPUT_FILE" ]; then
+            npx ts-node capture-screenshots.ts --file "../$INPUT_FILE"
+          else
+            npx ts-node capture-screenshots.ts
+          fi
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://staging.shopdirector.app' }}
+          DEMO_EMAIL: ${{ secrets.DEMO_EMAIL }}
+          DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+          CI: true
+
+      - name: Check for new images
+        id: check
+        run: |
+          if [ -n "$(git status --porcelain docs/assets/images/)" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit screenshots
+        if: steps.check.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/assets/images/
+          git commit -m "chore: update screenshots"
+          git push
