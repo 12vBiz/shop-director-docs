@@ -1,0 +1,11 @@
+# Cloudflare Worker config for docs auth
+name = "docs-auth"
+main = "auth.js"
+compatibility_date = "2024-01-01"
+
+# Environment variables (set in CF dashboard, not here)
+# DOCS_SIGNING_SECRET - shared with Rails
+# RAILS_APP_URL - e.g., https://app.shopdirector.app
+
+# Routes - bind to docs subdomain
+# Configure in CF dashboard: support.shopdirector.app/*
