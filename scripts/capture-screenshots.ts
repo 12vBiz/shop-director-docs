@@ -67,15 +67,16 @@ function getBaseUrl(): string {
   return 'https://staging.shopdirector.app';
 }
 
-// Configuration
+// Configuration - paths relative to repo root (one level up from scripts/)
+const REPO_ROOT = path.resolve(__dirname, '..');
 const CONFIG = {
   baseUrl: getBaseUrl(),
   credentials: {
     email: process.env.DEMO_EMAIL || 'c1admin1@example.com',
     password: process.env.DEMO_PASSWORD || 'sd1234'
   },
-  outputDir: 'docs/assets/images',
-  docsDir: 'docs'
+  outputDir: path.join(REPO_ROOT, 'docs/assets/images'),
+  docsDir: path.join(REPO_ROOT, 'docs')
 };
 
 interface ScreenshotMarker {
@@ -156,7 +157,8 @@ async function login(page: Page): Promise<void> {
   await page.fill('input[name="user[email]"]', CONFIG.credentials.email);
   await page.fill('input[name="user[password]"]', CONFIG.credentials.password);
   await page.click('input[type="submit"]');
-  await page.waitForURL(/\/(dashboard|$)/);
+  // Wait for redirect away from sign_in page
+  await page.waitForURL((url) => !url.pathname.includes('sign_in'), { timeout: 15000 });
   console.log('Logged in successfully');
 }
 

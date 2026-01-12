@@ -48,6 +48,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started:
+    - Logging In: getting-started/login.md
     - Quick Start: getting-started/quick-start.md
     - Your First Quote: getting-started/first-quote.md
   - Quotes:
