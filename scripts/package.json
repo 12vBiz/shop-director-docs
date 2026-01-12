@@ -7,6 +7,7 @@
     "capture:file": "tsx capture-screenshots.ts --file"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
     "dotenv": "^16.3.1",
     "glob": "^10.3.10",
     "playwright": "^1.40.0"

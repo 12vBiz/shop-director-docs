@@ -11,9 +11,16 @@
  *   - Auto-detects running Rails server on common ports
  *   - Create scripts/.env for credentials (optional, has defaults)
  *
- * Screenshot marker format:
- *   <!-- SCREENSHOT: description of what to capture -->
- *   <!-- SCREENSHOT: /path/to/page | description -->
+ * Screenshot marker formats:
+ *   <!-- SCREENSHOT: description -->
+ *   <!-- SCREENSHOT: /path | description -->
+ *   <!-- SCREENSHOT: /path | description | highlight:.selector -->
+ *   <!-- SCREENSHOT: /path | description | highlight:.btn-primary,#submit -->
+ *
+ * Highlight selectors:
+ *   - Any valid CSS selector (.class, #id, [data-attr], etc.)
+ *   - Multiple selectors separated by commas
+ *   - Elements get orange outline + subtle background highlight
  *
  * GIF marker format:
  *   <!-- GIF: step1 | step2 | step3 -->
@@ -25,6 +32,7 @@ import * as path from 'path';
 import { glob } from 'glob';
 import { execFileSync, execSync } from 'child_process';
 import { config } from 'dotenv';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 
 // Load .env from scripts directory
 config({ path: path.join(__dirname, '.env') });
@@ -84,6 +92,7 @@ interface ScreenshotMarker {
   description: string;
   path?: string;
   steps?: string[];
+  highlights?: string[];  // CSS selectors to highlight
   sourceFile: string;
   lineNumber: number;
 }
@@ -95,22 +104,42 @@ function parseMarkdownFile(filePath: string): ScreenshotMarker[] {
   const markers: ScreenshotMarker[] = [];
 
   lines.forEach((line, index) => {
-    // Screenshot marker: <!-- SCREENSHOT: description --> or <!-- SCREENSHOT: /path | description -->
+    // Screenshot marker formats:
+    //   <!-- SCREENSHOT: description -->
+    //   <!-- SCREENSHOT: /path | description -->
+    //   <!-- SCREENSHOT: /path | description | highlight:.selector1,.selector2 -->
     const screenshotMatch = line.match(/<!--\s*SCREENSHOT:\s*(.+?)\s*-->/i);
     if (screenshotMatch) {
       const parts = screenshotMatch[1].split('|').map(s => s.trim());
-      if (parts.length === 2 && parts[0].startsWith('/')) {
+
+      // Parse highlight selectors if present
+      let highlights: string[] | undefined;
+      const highlightPart = parts.find(p => p.startsWith('highlight:'));
+      if (highlightPart) {
+        highlights = highlightPart
+          .replace('highlight:', '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
+      }
+
+      // Remove highlight part from parts array for path/description parsing
+      const contentParts = parts.filter(p => !p.startsWith('highlight:'));
+
+      if (contentParts.length >= 2 && contentParts[0].startsWith('/')) {
         markers.push({
           type: 'screenshot',
-          path: parts[0],
-          description: parts[1],
+          path: contentParts[0],
+          description: contentParts[1],
+          highlights,
           sourceFile: filePath,
           lineNumber: index + 1
         });
       } else {
         markers.push({
           type: 'screenshot',
-          description: parts[0],
+          description: contentParts[0],
+          highlights,
           sourceFile: filePath,
           lineNumber: index + 1
         });
@@ -158,7 +187,7 @@ async function login(page: Page): Promise<void> {
   await page.fill('input[name="user[password]"]', CONFIG.credentials.password);
   await page.click('input[type="submit"]');
   // Wait for redirect away from sign_in page
-  await page.waitForURL((url) => !url.pathname.includes('sign_in'), { timeout: 15000 });
+  await page.waitForURL((url) => !url.pathname.includes('sign_in'), { timeout: 30000 });
   console.log('Logged in successfully');
 }
 
@@ -188,6 +217,199 @@ function inferPath(description: string): string {
   return '/dashboard';
 }
 
+interface ArrowTarget {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Apply highlight styles and collect arrow targets
+async function applyHighlights(page: Page, selectors: string[]): Promise<ArrowTarget[]> {
+  const viewport = page.viewportSize();
+  const viewportArea = (viewport?.width || 1400) * (viewport?.height || 900);
+  const smallElementThreshold = viewportArea * 0.10; // 10% of screen
+
+  // Inject highlight CSS - bright green (no arrows in DOM)
+  await page.addStyleTag({
+    content: `
+      .sd-docs-highlight {
+        outline: 3px solid #22c55e !important;
+        outline-offset: 4px !important;
+        position: relative;
+        z-index: 1000;
+      }
+      .sd-docs-highlight::after {
+        content: '';
+        position: absolute;
+        inset: -8px;
+        border-radius: 8px;
+        background: rgba(34, 197, 94, 0.1);
+        pointer-events: none;
+        z-index: -1;
+      }
+    `
+  });
+
+  // Collect elements that need arrows (small elements)
+  const arrowTargets: ArrowTarget[] = [];
+
+  // Add highlight class to matching elements
+  for (const selector of selectors) {
+    try {
+      const elements = await page.locator(selector).all();
+      for (const element of elements) {
+        await element.evaluate(el => el.classList.add('sd-docs-highlight'));
+
+        // Check if element is small enough for an arrow
+        const box = await element.boundingBox();
+        if (box) {
+          const elementArea = box.width * box.height;
+          if (elementArea < smallElementThreshold) {
+            arrowTargets.push(box);
+          }
+        }
+      }
+      console.log(`  Highlighted ${elements.length} element(s) for: ${selector}`);
+    } catch (e) {
+      console.log(`  Warning: Could not find elements for selector: ${selector}`);
+    }
+  }
+
+  return arrowTargets;
+}
+
+// Pick best arrow direction based on element position
+function pickArrowDirection(
+  box: ArrowTarget,
+  viewportWidth: number,
+  viewportHeight: number
+): 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' {
+  const centerX = box.x + box.width / 2;
+  const centerY = box.y + box.height / 2;
+
+  // Prefer bottom-right unless element is in that quadrant
+  const inRightHalf = centerX > viewportWidth * 0.6;
+  const inBottomHalf = centerY > viewportHeight * 0.6;
+
+  if (inRightHalf && inBottomHalf) {
+    return 'top-left';
+  } else if (inRightHalf) {
+    return 'bottom-left';
+  } else if (inBottomHalf) {
+    return 'top-right';
+  }
+  return 'bottom-right';
+}
+
+// Draw arrows on screenshot using Canvas 2D API
+async function addArrowsToImage(
+  imagePath: string,
+  targets: ArrowTarget[],
+  viewportWidth: number,
+  viewportHeight: number
+): Promise<void> {
+  if (targets.length === 0) return;
+
+  // Load the original screenshot
+  const image = await loadImage(imagePath);
+  const canvas = createCanvas(viewportWidth, viewportHeight);
+  const ctx = canvas.getContext('2d');
+
+  // Draw original image
+  ctx.drawImage(image, 0, 0);
+
+  // Arrow style settings - thick line with prominent arrowhead
+  const STROKE_WIDTH = 10;
+  const ARROW_COLOR = '#22c55e';
+  const ARROWHEAD_SIZE = 32;
+
+  for (const box of targets) {
+    const direction = pickArrowDirection(box, viewportWidth, viewportHeight);
+
+    // Calculate element corner based on direction (where arrow points TO)
+    const pad = 12; // padding from element
+    let targetX: number, targetY: number;
+    let startOffsetX: number, startOffsetY: number;
+
+    switch (direction) {
+      case 'bottom-right':
+        targetX = box.x + box.width + pad;
+        targetY = box.y + box.height + pad;
+        startOffsetX = 80;
+        startOffsetY = 80;
+        break;
+      case 'bottom-left':
+        targetX = box.x - pad;
+        targetY = box.y + box.height + pad;
+        startOffsetX = -80;
+        startOffsetY = 80;
+        break;
+      case 'top-right':
+        targetX = box.x + box.width + pad;
+        targetY = box.y - pad;
+        startOffsetX = 80;
+        startOffsetY = -80;
+        break;
+      case 'top-left':
+        targetX = box.x - pad;
+        targetY = box.y - pad;
+        startOffsetX = -80;
+        startOffsetY = -80;
+        break;
+    }
+
+    // Arrow starts from empty space, points TO the element
+    const startX = targetX + startOffsetX;
+    const startY = targetY + startOffsetY;
+    const endX = targetX;
+    const endY = targetY;
+
+    // Calculate arrow angle
+    const angle = Math.atan2(endY - startY, endX - startX);
+
+    // Shorten line to make room for arrowhead
+    const lineEndX = endX - Math.cos(angle) * ARROWHEAD_SIZE;
+    const lineEndY = endY - Math.sin(angle) * ARROWHEAD_SIZE;
+
+    // Draw the line
+    ctx.strokeStyle = ARROW_COLOR;
+    ctx.lineWidth = STROKE_WIDTH;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(lineEndX, lineEndY);
+    ctx.stroke();
+
+    // Draw arrowhead as filled triangle - wider for prominence
+    const headLength = ARROWHEAD_SIZE;
+    const headWidth = ARROWHEAD_SIZE * 1.2; // wider triangle
+
+    ctx.fillStyle = ARROW_COLOR;
+    ctx.beginPath();
+    // Tip of arrow
+    ctx.moveTo(endX, endY);
+    // Left side of arrowhead
+    ctx.lineTo(
+      endX - headLength * Math.cos(angle) + headWidth * Math.sin(angle) / 2,
+      endY - headLength * Math.sin(angle) - headWidth * Math.cos(angle) / 2
+    );
+    // Right side of arrowhead
+    ctx.lineTo(
+      endX - headLength * Math.cos(angle) - headWidth * Math.sin(angle) / 2,
+      endY - headLength * Math.sin(angle) + headWidth * Math.cos(angle) / 2
+    );
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Save the result
+  const buffer = canvas.toBuffer('image/png');
+  fs.writeFileSync(imagePath, buffer);
+
+  console.log(`  Added ${targets.length} arrow(s) via Canvas 2D`);
+}
+
 // Capture a single screenshot
 async function captureScreenshot(
   page: Page,
@@ -207,6 +429,13 @@ async function captureScreenshot(
   // Wait a bit for any animations
   await page.waitForTimeout(500);
 
+  // Apply highlights and collect arrow targets
+  let arrowTargets: ArrowTarget[] = [];
+  if (marker.highlights && marker.highlights.length > 0) {
+    arrowTargets = await applyHighlights(page, marker.highlights);
+    console.log(`  Applied ${marker.highlights.length} highlight(s)`);
+  }
+
   // Ensure output directory exists
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
@@ -217,6 +446,13 @@ async function captureScreenshot(
   });
 
   console.log(`  Saved: ${outputPath}`);
+
+  // Add arrows via Sharp post-processing
+  const viewport = page.viewportSize();
+  if (arrowTargets.length > 0 && viewport) {
+    await addArrowsToImage(outputPath, arrowTargets, viewport.width, viewport.height);
+  }
+
   return outputPath;
 }
 
