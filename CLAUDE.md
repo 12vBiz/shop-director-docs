@@ -71,6 +71,17 @@ owner: ai | human | ai-generated
 
 CI captures screenshots automatically on PR from staging app.
 
+**Local capture:**
+```bash
+cd scripts && npm install && npx playwright install chromium
+npm run capture
+```
+
+## CI Workflows
+
+- **Quality Checks** - Validates frontmatter, checks stale docs (90+ days), builds with `--strict`
+- **Capture Screenshots** - Auto-captures from staging app on PR
+
 ## Conventions
 
 - Use admonitions (`!!! tip`, `!!! warning`) for callouts
