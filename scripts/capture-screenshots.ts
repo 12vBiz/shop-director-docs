@@ -5,7 +5,12 @@
  * using Playwright with authenticated sessions.
  *
  * Usage:
- *   npx tsx capture-screenshots.ts [--file path/to/doc.md]
+ *   npx tsx capture-screenshots.ts [--file path/to/doc.md] [--strict]
+ *
+ * Flags:
+ *   --file <path>  Process only a single markdown file
+ *   --strict       Exit with error if highlights expected but none found
+ *                  (auto-enabled in CI)
  *
  * For local dev:
  *   - Auto-detects running Rails server on common ports
@@ -224,8 +229,13 @@ interface ArrowTarget {
   height: number;
 }
 
+interface HighlightResult {
+  targets: ArrowTarget[];
+  count: number;
+}
+
 // Apply highlight styles and collect arrow targets
-async function applyHighlights(page: Page, selectors: string[]): Promise<ArrowTarget[]> {
+async function applyHighlights(page: Page, selectors: string[]): Promise<HighlightResult> {
   const viewport = page.viewportSize();
   const viewportArea = (viewport?.width || 1400) * (viewport?.height || 900);
   const smallElementThreshold = viewportArea * 0.10; // 10% of screen
@@ -253,6 +263,7 @@ async function applyHighlights(page: Page, selectors: string[]): Promise<ArrowTa
 
   // Collect elements that need arrows (small elements)
   const arrowTargets: ArrowTarget[] = [];
+  let totalHighlighted = 0;
 
   // Add highlight class to matching elements
   for (const selector of selectors) {
@@ -260,6 +271,7 @@ async function applyHighlights(page: Page, selectors: string[]): Promise<ArrowTa
       const elements = await page.locator(selector).all();
       for (const element of elements) {
         await element.evaluate(el => el.classList.add('sd-docs-highlight'));
+        totalHighlighted++;
 
         // Check if element is small enough for an arrow
         const box = await element.boundingBox();
@@ -276,7 +288,7 @@ async function applyHighlights(page: Page, selectors: string[]): Promise<ArrowTa
     }
   }
 
-  return arrowTargets;
+  return { targets: arrowTargets, count: totalHighlighted };
 }
 
 type ArrowDirection = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -366,7 +378,12 @@ async function addArrowsToImage(
   console.log(`  Added ${targets.length} arrow(s)`);
 }
 
-async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<string> {
+interface ScreenshotResult {
+  path: string;
+  highlightCount: number;
+}
+
+async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<ScreenshotResult> {
   const targetPath = marker.path || inferPath(marker.description);
   const outputPath = path.join(CONFIG.outputDir, generateFilename(marker));
 
@@ -378,9 +395,14 @@ async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(500);
 
-  const arrowTargets = marker.highlights?.length
-    ? await applyHighlights(page, marker.highlights)
-    : [];
+  let highlightCount = 0;
+  let arrowTargets: ArrowTarget[] = [];
+
+  if (marker.highlights?.length) {
+    const result = await applyHighlights(page, marker.highlights);
+    arrowTargets = result.targets;
+    highlightCount = result.count;
+  }
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   await page.screenshot({ path: outputPath, fullPage: false });
@@ -391,7 +413,7 @@ async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<
     await addArrowsToImage(outputPath, arrowTargets, viewport.width, viewport.height);
   }
 
-  return outputPath;
+  return { path: outputPath, highlightCount };
 }
 
 async function captureGif(page: Page, marker: ScreenshotMarker): Promise<string> {
@@ -459,17 +481,52 @@ async function main(): Promise<void> {
   try {
     await login(page);
 
-    const results: { description: string; output: string; success: boolean }[] = [];
+    interface CaptureResult {
+      description: string;
+      output: string;
+      success: boolean;
+      expectedHighlights: number;
+      actualHighlights: number;
+      sourceFile: string;
+      lineNumber: number;
+    }
+
+    const results: CaptureResult[] = [];
 
     for (const marker of allMarkers) {
       try {
-        const output = marker.type === 'gif'
-          ? await captureGif(page, marker)
-          : await captureScreenshot(page, marker);
-        results.push({ description: marker.description, output, success: true });
+        const expectedHighlights = marker.highlights?.length || 0;
+        let outputPath: string;
+        let actualHighlights = 0;
+
+        if (marker.type === 'gif') {
+          outputPath = await captureGif(page, marker);
+        } else {
+          const result = await captureScreenshot(page, marker);
+          outputPath = result.path;
+          actualHighlights = result.highlightCount;
+        }
+
+        results.push({
+          description: marker.description,
+          output: outputPath,
+          success: true,
+          expectedHighlights,
+          actualHighlights,
+          sourceFile: marker.sourceFile,
+          lineNumber: marker.lineNumber
+        });
       } catch (error) {
         console.error(`Failed to capture: ${marker.description}`, error);
-        results.push({ description: marker.description, output: '', success: false });
+        results.push({
+          description: marker.description,
+          output: '',
+          success: false,
+          expectedHighlights: marker.highlights?.length || 0,
+          actualHighlights: 0,
+          sourceFile: marker.sourceFile,
+          lineNumber: marker.lineNumber
+        });
       }
     }
 
@@ -477,9 +534,30 @@ async function main(): Promise<void> {
     console.log(`\n--- Summary ---`);
     console.log(`Total: ${results.length}, Success: ${successCount}, Failed: ${results.length - successCount}`);
 
+    // Check for missing highlights (expected but got none)
+    const missingHighlights = results.filter(r =>
+      r.success && r.expectedHighlights > 0 && r.actualHighlights === 0
+    );
+
+    if (missingHighlights.length > 0) {
+      console.log(`\n⚠️  WARNING: ${missingHighlights.length} screenshot(s) expected highlights but found none:`);
+      for (const r of missingHighlights) {
+        const relPath = r.sourceFile.replace(REPO_ROOT + '/', '');
+        console.log(`   - ${r.description}`);
+        console.log(`     ${relPath}:${r.lineNumber}`);
+      }
+    }
+
     if (process.env.CI) {
       console.log('\n--- Results JSON ---');
       console.log(JSON.stringify(results));
+    }
+
+    // Exit with error if strict mode and highlights missing
+    const strictMode = args.includes('--strict') || process.env.CI;
+    if (strictMode && missingHighlights.length > 0) {
+      console.log('\n❌ Failing due to missing highlights (strict mode)');
+      process.exit(1);
     }
   } finally {
     await browser.close();
