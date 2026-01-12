@@ -23,10 +23,14 @@ Make sure you have:
 
 Click **Quotes** in the sidebar, then click the **New Quote** button.
 
+<!-- SCREENSHOT: /quotes | Quotes list with New Quote button | highlight:a[href*="quotes/new"],.btn-primary -->
+
 ### 2. Add Customer Information
 
 - Search for an existing customer, or
 - Click **New Customer** to add someone new
+
+<!-- SCREENSHOT: /quotes/new | New quote customer section | highlight:[name*="customer"],a[href*="customers/new"] -->
 
 ### 3. Add Vehicle
 
@@ -50,6 +54,8 @@ Preview the quote, then either:
 
 - **Save as Draft** - Continue editing later
 - **Send to Customer** - Email the quote for approval
+
+<!-- SCREENSHOT: /quotes/1 | Quote review with action buttons | highlight:input[type="submit"],.btn-success,.btn-primary -->
 
 ## What's Next?
 

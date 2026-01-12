@@ -17,6 +17,8 @@ Switch between views using the buttons at the top:
 - **Week** - See the full week at a glance
 - **Month** - Monthly overview
 
+<!-- SCREENSHOT: /schedule | Calendar week view | highlight:.fc-toolbar-chunk,.fc-button-group -->
+
 ## Bays and Technicians
 
 The calendar shows:
@@ -24,6 +26,8 @@ The calendar shows:
 - **Bays** - Your installation bays (columns)
 - **Appointments** - Scheduled work (blocks on the calendar)
 - **Availability** - Open time slots
+
+<!-- SCREENSHOT: /schedule | Calendar with appointments | highlight:.fc-event,.fc-col-header-cell -->
 
 ## Quick Actions
 

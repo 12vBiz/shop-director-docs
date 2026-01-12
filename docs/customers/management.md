@@ -20,6 +20,8 @@ Keep track of your customers and their vehicles.
    - Address (optional)
 4. Save
 
+<!-- SCREENSHOT: /customers | Customers list with new button | highlight:a[href*="customers/new"],.btn-primary -->
+
 ## Customer Profiles
 
 Each customer profile shows:
@@ -29,6 +31,8 @@ Each customer profile shows:
 - Quote history
 - Order history
 - Notes
+
+<!-- SCREENSHOT: /customers/1 | Customer profile | highlight:.card,.nav-tabs -->
 
 ## Managing Vehicles
 
@@ -47,3 +51,5 @@ Use the search bar to find customers by:
 - Phone number
 - Email
 - Vehicle info
+
+<!-- SCREENSHOT: /customers | Customer search | highlight:input[type="search"],input[placeholder*="Search"] -->

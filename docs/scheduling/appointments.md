@@ -19,6 +19,8 @@ From the calendar:
 4. Assign technician (optional)
 5. Save
 
+<!-- SCREENSHOT: /work_orders/new | New appointment form | highlight:input[type="submit"],.btn-primary,select -->
+
 ## Appointment Details
 
 Each appointment shows:
@@ -43,3 +45,5 @@ When the job is done:
 2. Click **Mark Complete**
 3. Add any final notes
 4. Generate invoice
+
+<!-- SCREENSHOT: /work_orders/1 | Work order with complete button | highlight:a[href*="complete"],.btn-success -->

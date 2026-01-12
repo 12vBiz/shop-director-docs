@@ -25,6 +25,8 @@ This guide covers creating and managing quotes.
 4. Add line items (products and services)
 5. Save or send to customer
 
+<!-- SCREENSHOT: /quotes/new | New quote form | highlight:input[type="submit"],.btn-primary -->
+
 ## Quote Statuses
 
 | Status | Meaning |
@@ -42,6 +44,8 @@ Once a quote is approved:
 1. Open the quote
 2. Click **Convert to Order**
 3. The quote becomes an order ready for scheduling
+
+<!-- SCREENSHOT: /quotes/1 | Quote with convert button | highlight:a[href*="convert"],.btn-success -->
 
 ## Tips
 

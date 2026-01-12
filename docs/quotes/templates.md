@@ -19,6 +19,8 @@ Templates are pre-configured quotes with common products and services. Use them 
 2. Click **Save as Template**
 3. Give it a descriptive name
 
+<!-- SCREENSHOT: /quotes/1 | Save as template button | highlight:a[href*="template"],.dropdown-item -->
+
 ## Using a Template
 
 1. Start a new quote
