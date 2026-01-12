@@ -24,13 +24,13 @@ The workflow is simple: add items, take payment, done.
 1. Click **Sales** in the sidebar, then **Quick Sales**
 2. Click the **New Quick Sale** button
 
-<!-- SCREENSHOT: /counter_sales | Quick Sales list page with New Quick Sale button -->
+![Quick Sales list page](../assets/images/sales/quick-sales-list-page-with-new-quick-sale-button.png)
 
 3. Select a **Customer** from the dropdown (or click **Add new customer** to create one)
 4. Choose the **Location** for this sale
 5. Add optional **Notes** if needed
 
-<!-- SCREENSHOT: /counter_sales/new | New Quick Sale form with customer and location fields -->
+![New Quick Sale form](../assets/images/sales/new-quick-sale-form-with-customer-and-location-fie.png)
 
 ## Adding Items
 
@@ -39,7 +39,7 @@ The workflow is simple: add items, take payment, done.
 3. Adjust the **Quantity** if needed
 4. Repeat to add more items
 
-<!-- SCREENSHOT: /counter_sales/new | Quick Sale form with line items added -->
+![Quick Sale form with line items](../assets/images/sales/quick-sale-form-with-line-items-added.png)
 
 !!! tip "Custom Items"
     Don't see the item you need? Leave the product blank and type a custom description and price.
@@ -56,7 +56,7 @@ After clicking **Create Sale**, you'll see the payment screen.
 4. For checks, enter the check number in **Reference**
 5. Click **Record Payment**
 
-<!-- SCREENSHOT: /counter_sales/1 | Quick Sale show page with payment form and balance due -->
+![Quick Sale payment screen](../assets/images/sales/quick-sale-show-page-with-payment-form-and-balance.png)
 
 ## Partial Payments
 
@@ -77,7 +77,7 @@ Once fully paid:
 - Click **Print Receipt** to print for the customer
 - The sale appears in the **Paid** filter on the Quick Sales list
 
-<!-- SCREENSHOT: /counter_sales/1 | Completed Quick Sale showing paid status and print receipt button -->
+![Completed Quick Sale](../assets/images/sales/completed-quick-sale-showing-paid-status-and-print.png)
 
 ## Editing a Sale
 
