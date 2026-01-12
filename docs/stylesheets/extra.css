@@ -4,6 +4,7 @@
   --md-primary-fg-color--light: #FFE600;  /* yellow accents */
   --md-primary-fg-color--dark:  #E5A500;  /* darker variant */
   --md-accent-fg-color:         #4A6FA5;  /* slate blue for links */
+  --md-typeset-a-color:         #4A6FA5;  /* slate blue for content links */
 }
 
 /* White text on amber header */
@@ -22,4 +23,5 @@ a {
   --md-primary-fg-color--light: #FFE600;
   --md-primary-fg-color--dark:  #E5A500;
   --md-accent-fg-color:         #6B8FC7;  /* lighter slate blue for dark bg */
+  --md-typeset-a-color:         #6B8FC7;  /* lighter slate blue for dark bg */
 }
