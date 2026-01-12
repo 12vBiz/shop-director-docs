@@ -66,15 +66,29 @@ owner: ai | human | ai-generated
 
 ```markdown
 <!-- SCREENSHOT: /path | Description -->
+<!-- SCREENSHOT: /path | Description | highlight:selector1,selector2 -->
+<!-- SCREENSHOT: /path | Description | highlight:selector | arrow:bottom-right -->
 <!-- GIF: /step1 | /step2 | /step3 -->
 ```
+
+**Highlight parameter:** CSS selectors for elements to highlight with green outline. Small elements (<10% viewport) automatically get arrows.
+
+**Arrow override:** Direction keyword when auto-positioning doesn't work well.
+- `arrow:bottom-right` (default)
+- `arrow:bottom-left`
+- `arrow:top-right`
+- `arrow:top-left`
+
+**Arrow style:** 10px green line (#22c55e), 32×38px triangle arrowhead.
 
 CI captures screenshots automatically on PR from staging app.
 
 **Local capture:**
 ```bash
 cd scripts && npm install && npx playwright install chromium
-npm run capture
+npx tsx scripts/capture-screenshots.ts
+# Or for specific file:
+npx tsx scripts/capture-screenshots.ts --file docs/path/to/doc.md
 ```
 
 ## CI Workflows
