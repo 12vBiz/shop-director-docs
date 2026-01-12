@@ -1,0 +1,25 @@
+/* Shop Director brand colors from favicon.svg */
+:root > * {
+  --md-primary-fg-color:        #FFB800;  /* amber header */
+  --md-primary-fg-color--light: #FFE600;  /* yellow accents */
+  --md-primary-fg-color--dark:  #E5A500;  /* darker variant */
+  --md-accent-fg-color:         #4A6FA5;  /* slate blue for links */
+}
+
+/* White text on amber header */
+.md-header {
+  --md-primary-bg-color: #fff;
+}
+
+/* Bold links for better readability */
+a {
+  font-weight: 600;
+}
+
+/* Ensure dark mode also uses brand colors */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #FFB800;
+  --md-primary-fg-color--light: #FFE600;
+  --md-primary-fg-color--dark:  #E5A500;
+  --md-accent-fg-color:         #6B8FC7;  /* lighter slate blue for dark bg */
+}
