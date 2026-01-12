@@ -45,5 +45,6 @@ Answer to edge case question.
 
 ## Related Articles
 
-- [Related Article 1](../path/to/article.md)
-- [Related Article 2](../path/to/article.md)
+<!-- Replace # with actual paths like ../quotes/creating.md -->
+- [Related Article 1](#)
+- [Related Article 2](#)
