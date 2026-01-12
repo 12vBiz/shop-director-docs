@@ -279,28 +279,30 @@ async function applyHighlights(page: Page, selectors: string[]): Promise<ArrowTa
   return arrowTargets;
 }
 
-// Pick best arrow direction based on element position
+type ArrowDirection = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+
+// Pick arrow direction based on element position (away from element)
 function pickArrowDirection(
   box: ArrowTarget,
   viewportWidth: number,
   viewportHeight: number
-): 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' {
-  const centerX = box.x + box.width / 2;
-  const centerY = box.y + box.height / 2;
+): ArrowDirection {
+  const inRightHalf = (box.x + box.width / 2) > viewportWidth * 0.6;
+  const inBottomHalf = (box.y + box.height / 2) > viewportHeight * 0.6;
 
-  // Prefer bottom-right unless element is in that quadrant
-  const inRightHalf = centerX > viewportWidth * 0.6;
-  const inBottomHalf = centerY > viewportHeight * 0.6;
-
-  if (inRightHalf && inBottomHalf) {
-    return 'top-left';
-  } else if (inRightHalf) {
-    return 'bottom-left';
-  } else if (inBottomHalf) {
-    return 'top-right';
-  }
+  if (inRightHalf && inBottomHalf) return 'top-left';
+  if (inRightHalf) return 'bottom-left';
+  if (inBottomHalf) return 'top-right';
   return 'bottom-right';
 }
+
+// Arrow offset configs by direction
+const ARROW_OFFSETS: Record<ArrowDirection, { targetX: (b: ArrowTarget, pad: number) => number; targetY: (b: ArrowTarget, pad: number) => number; offsetX: number; offsetY: number }> = {
+  'bottom-right': { targetX: (b, pad) => b.x + b.width + pad, targetY: (b, pad) => b.y + b.height + pad, offsetX: 80, offsetY: 80 },
+  'bottom-left': { targetX: (b, pad) => b.x - pad, targetY: (b, pad) => b.y + b.height + pad, offsetX: -80, offsetY: 80 },
+  'top-right': { targetX: (b, pad) => b.x + b.width + pad, targetY: (b, pad) => b.y - pad, offsetX: 80, offsetY: -80 },
+  'top-left': { targetX: (b, pad) => b.x - pad, targetY: (b, pad) => b.y - pad, offsetX: -80, offsetY: -80 },
+};
 
 // Draw arrows on screenshot using Canvas 2D API
 async function addArrowsToImage(
@@ -311,68 +313,30 @@ async function addArrowsToImage(
 ): Promise<void> {
   if (targets.length === 0) return;
 
-  // Load the original screenshot
   const image = await loadImage(imagePath);
   const canvas = createCanvas(viewportWidth, viewportHeight);
   const ctx = canvas.getContext('2d');
-
-  // Draw original image
   ctx.drawImage(image, 0, 0);
 
-  // Arrow style settings - thick line with prominent arrowhead
   const STROKE_WIDTH = 10;
   const ARROW_COLOR = '#22c55e';
   const ARROWHEAD_SIZE = 32;
+  const PAD = 12;
 
   for (const box of targets) {
     const direction = pickArrowDirection(box, viewportWidth, viewportHeight);
+    const offsets = ARROW_OFFSETS[direction];
 
-    // Calculate element corner based on direction (where arrow points TO)
-    const pad = 12; // padding from element
-    let targetX: number, targetY: number;
-    let startOffsetX: number, startOffsetY: number;
+    const targetX = offsets.targetX(box, PAD);
+    const targetY = offsets.targetY(box, PAD);
+    const startX = targetX + offsets.offsetX;
+    const startY = targetY + offsets.offsetY;
 
-    switch (direction) {
-      case 'bottom-right':
-        targetX = box.x + box.width + pad;
-        targetY = box.y + box.height + pad;
-        startOffsetX = 80;
-        startOffsetY = 80;
-        break;
-      case 'bottom-left':
-        targetX = box.x - pad;
-        targetY = box.y + box.height + pad;
-        startOffsetX = -80;
-        startOffsetY = 80;
-        break;
-      case 'top-right':
-        targetX = box.x + box.width + pad;
-        targetY = box.y - pad;
-        startOffsetX = 80;
-        startOffsetY = -80;
-        break;
-      case 'top-left':
-        targetX = box.x - pad;
-        targetY = box.y - pad;
-        startOffsetX = -80;
-        startOffsetY = -80;
-        break;
-    }
+    const angle = Math.atan2(targetY - startY, targetX - startX);
+    const lineEndX = targetX - Math.cos(angle) * ARROWHEAD_SIZE;
+    const lineEndY = targetY - Math.sin(angle) * ARROWHEAD_SIZE;
 
-    // Arrow starts from empty space, points TO the element
-    const startX = targetX + startOffsetX;
-    const startY = targetY + startOffsetY;
-    const endX = targetX;
-    const endY = targetY;
-
-    // Calculate arrow angle
-    const angle = Math.atan2(endY - startY, endX - startX);
-
-    // Shorten line to make room for arrowhead
-    const lineEndX = endX - Math.cos(angle) * ARROWHEAD_SIZE;
-    const lineEndY = endY - Math.sin(angle) * ARROWHEAD_SIZE;
-
-    // Draw the line
+    // Draw line
     ctx.strokeStyle = ARROW_COLOR;
     ctx.lineWidth = STROKE_WIDTH;
     ctx.lineCap = 'round';
@@ -381,40 +345,28 @@ async function addArrowsToImage(
     ctx.lineTo(lineEndX, lineEndY);
     ctx.stroke();
 
-    // Draw arrowhead as filled triangle - wider for prominence
-    const headLength = ARROWHEAD_SIZE;
-    const headWidth = ARROWHEAD_SIZE * 1.2; // wider triangle
-
+    // Draw arrowhead triangle
+    const headWidth = ARROWHEAD_SIZE * 1.2;
     ctx.fillStyle = ARROW_COLOR;
     ctx.beginPath();
-    // Tip of arrow
-    ctx.moveTo(endX, endY);
-    // Left side of arrowhead
+    ctx.moveTo(targetX, targetY);
     ctx.lineTo(
-      endX - headLength * Math.cos(angle) + headWidth * Math.sin(angle) / 2,
-      endY - headLength * Math.sin(angle) - headWidth * Math.cos(angle) / 2
+      targetX - ARROWHEAD_SIZE * Math.cos(angle) + headWidth * Math.sin(angle) / 2,
+      targetY - ARROWHEAD_SIZE * Math.sin(angle) - headWidth * Math.cos(angle) / 2
     );
-    // Right side of arrowhead
     ctx.lineTo(
-      endX - headLength * Math.cos(angle) - headWidth * Math.sin(angle) / 2,
-      endY - headLength * Math.sin(angle) + headWidth * Math.cos(angle) / 2
+      targetX - ARROWHEAD_SIZE * Math.cos(angle) - headWidth * Math.sin(angle) / 2,
+      targetY - ARROWHEAD_SIZE * Math.sin(angle) + headWidth * Math.cos(angle) / 2
     );
     ctx.closePath();
     ctx.fill();
   }
 
-  // Save the result
-  const buffer = canvas.toBuffer('image/png');
-  fs.writeFileSync(imagePath, buffer);
-
-  console.log(`  Added ${targets.length} arrow(s) via Canvas 2D`);
+  fs.writeFileSync(imagePath, canvas.toBuffer('image/png'));
+  console.log(`  Added ${targets.length} arrow(s)`);
 }
 
-// Capture a single screenshot
-async function captureScreenshot(
-  page: Page,
-  marker: ScreenshotMarker
-): Promise<string> {
+async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<string> {
   const targetPath = marker.path || inferPath(marker.description);
   const outputPath = path.join(CONFIG.outputDir, generateFilename(marker));
 
@@ -422,32 +374,18 @@ async function captureScreenshot(
   console.log(`  Path: ${targetPath}`);
   console.log(`  Output: ${outputPath}`);
 
-  // Navigate to page
   await page.goto(`${CONFIG.baseUrl}${targetPath}`);
   await page.waitForLoadState('networkidle');
-
-  // Wait a bit for any animations
   await page.waitForTimeout(500);
 
-  // Apply highlights and collect arrow targets
-  let arrowTargets: ArrowTarget[] = [];
-  if (marker.highlights && marker.highlights.length > 0) {
-    arrowTargets = await applyHighlights(page, marker.highlights);
-    console.log(`  Applied ${marker.highlights.length} highlight(s)`);
-  }
+  const arrowTargets = marker.highlights?.length
+    ? await applyHighlights(page, marker.highlights)
+    : [];
 
-  // Ensure output directory exists
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-
-  // Take screenshot
-  await page.screenshot({
-    path: outputPath,
-    fullPage: false
-  });
-
+  await page.screenshot({ path: outputPath, fullPage: false });
   console.log(`  Saved: ${outputPath}`);
 
-  // Add arrows via Sharp post-processing
   const viewport = page.viewportSize();
   if (arrowTargets.length > 0 && viewport) {
     await addArrowsToImage(outputPath, arrowTargets, viewport.width, viewport.height);
@@ -456,12 +394,8 @@ async function captureScreenshot(
   return outputPath;
 }
 
-// Capture GIF from multiple steps
-async function captureGif(
-  page: Page,
-  marker: ScreenshotMarker
-): Promise<string> {
-  if (!marker.steps || marker.steps.length === 0) {
+async function captureGif(page: Page, marker: ScreenshotMarker): Promise<string> {
+  if (!marker.steps?.length) {
     throw new Error('GIF marker requires steps');
   }
 
@@ -472,70 +406,45 @@ async function captureGif(
   console.log(`Capturing GIF: ${marker.description}`);
   console.log(`  Steps: ${marker.steps.join(' -> ')}`);
 
-  // Capture frame for each step
-  const frames: string[] = [];
   for (let i = 0; i < marker.steps.length; i++) {
     const step = marker.steps[i];
     const framePath = path.join(tempDir, `frame-${i.toString().padStart(3, '0')}.png`);
-
-    // Parse step - could be a path or description
     const targetPath = step.startsWith('/') ? step : inferPath(step);
 
     await page.goto(`${CONFIG.baseUrl}${targetPath}`);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(300);
-
     await page.screenshot({ path: framePath });
-    frames.push(framePath);
+
     console.log(`  Frame ${i + 1}/${marker.steps.length}: ${step}`);
   }
 
-  // Create GIF using ffmpeg (using execFileSync for security - no shell injection)
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
-  try {
-    execFileSync('ffmpeg', [
-      '-y',
-      '-framerate', '0.5',
-      '-i', `${tempDir}/frame-%03d.png`,
-      '-vf', 'scale=1200:-1',
-      outputPath
-    ], { stdio: 'pipe' });
-    console.log(`  Saved GIF: ${outputPath}`);
-  } catch (error) {
-    console.error('  FFmpeg failed, GIF not created');
-    throw error;
-  }
+  execFileSync('ffmpeg', [
+    '-y',
+    '-framerate', '0.5',
+    '-i', `${tempDir}/frame-%03d.png`,
+    '-vf', 'scale=1200:-1',
+    outputPath
+  ], { stdio: 'pipe' });
 
-  // Cleanup temp frames
   fs.rmSync(tempDir, { recursive: true });
+  console.log(`  Saved GIF: ${outputPath}`);
 
   return outputPath;
 }
 
-// Main execution
-async function main() {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  let targetFiles: string[] = [];
-
-  // Parse arguments
   const fileArgIndex = args.indexOf('--file');
-  if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
-    targetFiles = [args[fileArgIndex + 1]];
-  } else {
-    // Find all markdown files
-    targetFiles = await glob(`${CONFIG.docsDir}/**/*.md`);
-  }
+  const targetFiles = fileArgIndex !== -1 && args[fileArgIndex + 1]
+    ? [args[fileArgIndex + 1]]
+    : await glob(`${CONFIG.docsDir}/**/*.md`);
 
   console.log(`Scanning ${targetFiles.length} file(s) for screenshot markers...`);
 
-  // Collect all markers
-  const allMarkers: ScreenshotMarker[] = [];
-  for (const file of targetFiles) {
-    const markers = parseMarkdownFile(file);
-    allMarkers.push(...markers);
-  }
-
+  const allMarkers = targetFiles.flatMap(file => parseMarkdownFile(file));
   console.log(`Found ${allMarkers.length} marker(s)`);
 
   if (allMarkers.length === 0) {
@@ -543,50 +452,35 @@ async function main() {
     return;
   }
 
-  // Launch browser and process markers
-  const browser: Browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1400, height: 900 }
-  });
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   const page = await context.newPage();
 
   try {
     await login(page);
 
-    const results: { marker: ScreenshotMarker; output: string; success: boolean }[] = [];
+    const results: { description: string; output: string; success: boolean }[] = [];
 
     for (const marker of allMarkers) {
       try {
-        let output: string;
-        if (marker.type === 'gif') {
-          output = await captureGif(page, marker);
-        } else {
-          output = await captureScreenshot(page, marker);
-        }
-        results.push({ marker, output, success: true });
+        const output = marker.type === 'gif'
+          ? await captureGif(page, marker)
+          : await captureScreenshot(page, marker);
+        results.push({ description: marker.description, output, success: true });
       } catch (error) {
-        console.error(`Failed to capture: ${marker.description}`);
-        console.error(error);
-        results.push({ marker, output: '', success: false });
+        console.error(`Failed to capture: ${marker.description}`, error);
+        results.push({ description: marker.description, output: '', success: false });
       }
     }
 
-    // Summary
-    console.log('\n--- Summary ---');
-    console.log(`Total: ${results.length}`);
-    console.log(`Success: ${results.filter(r => r.success).length}`);
-    console.log(`Failed: ${results.filter(r => !r.success).length}`);
+    const successCount = results.filter(r => r.success).length;
+    console.log(`\n--- Summary ---`);
+    console.log(`Total: ${results.length}, Success: ${successCount}, Failed: ${results.length - successCount}`);
 
-    // Output results as JSON for CI integration
     if (process.env.CI) {
       console.log('\n--- Results JSON ---');
-      console.log(JSON.stringify(results.map(r => ({
-        description: r.marker.description,
-        output: r.output,
-        success: r.success
-      }))));
+      console.log(JSON.stringify(results));
     }
-
   } finally {
     await browser.close();
   }
