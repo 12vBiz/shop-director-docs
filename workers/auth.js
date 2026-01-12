@@ -17,22 +17,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // Allow public paths without auth
-    if (isPublicPath(path)) {
-      return fetch(request);
-    }
-
-    // Check for existing session cookie
-    const cookies = parseCookies(request.headers.get('Cookie') || '');
-    const sessionToken = cookies[COOKIE_NAME];
-
-    if (sessionToken && await isValidSession(sessionToken, env.DOCS_SIGNING_SECRET)) {
-      // Valid session - allow access and refresh cookie
-      const response = await fetch(request);
-      return addSessionCookie(response, sessionToken, url.hostname);
-    }
-
-    // Check for token in URL (from Rails redirect)
+    // Check for token in URL FIRST (from Rails redirect) - before public path check
     const token = url.searchParams.get('token');
 
     if (token) {
@@ -45,6 +30,22 @@ export default {
         const newSession = await createSession(validation.payload, env.DOCS_SIGNING_SECRET);
         return addSessionCookie(response, newSession, url.hostname);
       }
+      // Invalid token - fall through to normal auth flow
+    }
+
+    // Allow public paths without auth (after token check)
+    if (isPublicPath(path)) {
+      return fetch(request);
+    }
+
+    // Check for existing session cookie
+    const cookies = parseCookies(request.headers.get('Cookie') || '');
+    const sessionToken = cookies[COOKIE_NAME];
+
+    if (sessionToken && await isValidSession(sessionToken, env.DOCS_SIGNING_SECRET)) {
+      // Valid session - allow access and refresh cookie
+      const response = await fetch(request);
+      return addSessionCookie(response, sessionToken, url.hostname);
     }
 
     // No valid auth - redirect to Rails login
