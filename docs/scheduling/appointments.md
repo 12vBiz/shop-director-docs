@@ -21,6 +21,8 @@ From the calendar:
 
 <!-- SCREENSHOT: /work_orders/new | New appointment form | highlight:input[type="submit"],.btn-primary,select -->
 
+![New appointment form](../assets/images/scheduling/new-appointment-form.png)
+
 ## Appointment Details
 
 Each appointment shows:
@@ -47,3 +49,5 @@ When the job is done:
 4. Generate invoice
 
 <!-- SCREENSHOT: /work_orders/1 | Work order with complete button | highlight:a[href*="complete"],.btn-success -->
+
+![Work order with complete button](../assets/images/scheduling/work-order-with-complete-button.png)

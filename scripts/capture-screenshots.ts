@@ -29,6 +29,10 @@
  *
  * GIF marker format:
  *   <!-- GIF: step1 | step2 | step3 -->
+ *
+ * Auto-adds image refs:
+ *   After capturing, the script auto-inserts ![description](path)
+ *   below each marker if not already present.
  */
 
 import { chromium, Browser, Page } from 'playwright';
@@ -166,6 +170,40 @@ function parseMarkdownFile(filePath: string): ScreenshotMarker[] {
   });
 
   return markers;
+}
+
+// Generate relative image path for markdown (from doc file to image)
+function getRelativeImagePath(sourceFile: string, imagePath: string): string {
+  const sourceDir = path.dirname(sourceFile);
+  return path.relative(sourceDir, imagePath);
+}
+
+// Add image ref below SCREENSHOT marker if not already present
+function addImageRefToMarkdown(
+  sourceFile: string,
+  lineNumber: number,
+  imagePath: string,
+  description: string
+): boolean {
+  const content = fs.readFileSync(sourceFile, 'utf-8');
+  const lines = content.split('\n');
+  const markerLineIndex = lineNumber - 1;
+
+  // Check if image ref already exists on next line
+  const nextLine = lines[markerLineIndex + 1] || '';
+  if (nextLine.trim().startsWith('![')) {
+    return false; // Already has image ref
+  }
+
+  // Generate relative path and markdown image ref
+  const relativePath = getRelativeImagePath(sourceFile, imagePath);
+  const imageRef = `\n![${description}](${relativePath})`;
+
+  // Insert after the marker line
+  lines.splice(markerLineIndex + 1, 0, imageRef);
+  fs.writeFileSync(sourceFile, lines.join('\n'));
+  console.log(`  Added image ref to ${path.basename(sourceFile)}:${lineNumber}`);
+  return true;
 }
 
 // Generate filename from description
@@ -506,6 +544,14 @@ async function main(): Promise<void> {
           outputPath = result.path;
           actualHighlights = result.highlightCount;
         }
+
+        // Auto-add image ref to markdown if not present
+        addImageRefToMarkdown(
+          marker.sourceFile,
+          marker.lineNumber,
+          outputPath,
+          marker.description
+        );
 
         results.push({
           description: marker.description,

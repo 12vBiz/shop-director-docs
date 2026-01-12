@@ -19,6 +19,8 @@ Switch between views using the buttons at the top:
 
 <!-- SCREENSHOT: /schedule | Calendar week view | highlight:.fc-toolbar-chunk,.fc-button-group -->
 
+![Calendar week view](../assets/images/scheduling/calendar-week-view.png)
+
 ## Bays and Technicians
 
 The calendar shows:
@@ -28,6 +30,8 @@ The calendar shows:
 - **Availability** - Open time slots
 
 <!-- SCREENSHOT: /schedule | Calendar with appointments | highlight:.fc-event,.fc-col-header-cell -->
+
+![Calendar with appointments](../assets/images/scheduling/calendar-with-appointments.png)
 
 ## Quick Actions
 

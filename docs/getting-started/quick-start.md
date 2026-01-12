@@ -29,11 +29,15 @@ Your dashboard shows today's schedule at a glance:
 
 <!-- SCREENSHOT: /dashboard | Dashboard overview | highlight:.dashboard-widget,.card-header -->
 
+![Dashboard overview](../assets/images/getting-started/dashboard-overview.png)
+
 ### 3. Create Your First Quote
 
 Ready to create a quote? Head to **Quotes → New Quote** or check out our [Creating Your First Quote](first-quote.md) guide.
 
 <!-- SCREENSHOT: /quotes | Quotes sidebar and new button | highlight:a[href*="quotes"],a[href*="quotes/new"] -->
+
+![Quotes sidebar and new button](../assets/images/getting-started/quotes-sidebar-and-new-button.png)
 
 ## Key Concepts
 

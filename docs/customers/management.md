@@ -22,6 +22,8 @@ Keep track of your customers and their vehicles.
 
 <!-- SCREENSHOT: /customers | Customers list with new button | highlight:a[href*="customers/new"],.btn-primary -->
 
+![Customers list with new button](../assets/images/customers/customers-list-with-new-button.png)
+
 ## Customer Profiles
 
 Each customer profile shows:
@@ -33,6 +35,8 @@ Each customer profile shows:
 - Notes
 
 <!-- SCREENSHOT: /customers/1 | Customer profile | highlight:.card,.nav-tabs -->
+
+![Customer profile](../assets/images/customers/customer-profile.png)
 
 ## Managing Vehicles
 
@@ -53,3 +57,5 @@ Use the search bar to find customers by:
 - Vehicle info
 
 <!-- SCREENSHOT: /customers | Customer search | highlight:input[type="search"],input[placeholder*="Search"] -->
+
+![Customer search](../assets/images/customers/customer-search.png)
