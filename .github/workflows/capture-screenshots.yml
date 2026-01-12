@@ -49,9 +49,9 @@ jobs:
         working-directory: scripts
         run: |
           if [ -n "$INPUT_FILE" ]; then
-            npx ts-node capture-screenshots.ts --file "../$INPUT_FILE"
+            npx tsx capture-screenshots.ts --file "../$INPUT_FILE"
           else
-            npx ts-node capture-screenshots.ts
+            npx tsx capture-screenshots.ts
           fi
         env:
           APP_URL: ${{ vars.APP_URL || 'https://staging.shopdirector.app' }}

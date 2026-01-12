@@ -7,9 +7,13 @@ compatibility_date = "2026-01-11"
 # DOCS_SIGNING_SECRET - shared with Rails
 # RAILS_APP_URL - e.g., https://staging.shopdirector.app
 
-# Route binding
+# Route bindings
 [[routes]]
 pattern = "support.shopdirector.app/*"
+zone_name = "shopdirector.app"
+
+[[routes]]
+pattern = "docs-staging.shopdirector.app/*"
 zone_name = "shopdirector.app"
 
 [observability]

@@ -1,0 +1,172 @@
+name: Quality Checks
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'docs/**/*.md'
+      - 'mkdocs.yml'
+  pull_request:
+    paths:
+      - 'docs/**/*.md'
+      - 'mkdocs.yml'
+  schedule:
+    # Weekly check for stale docs (Mondays at 9am UTC)
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  frontmatter-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate frontmatter
+        run: |
+          echo "Checking frontmatter in docs..."
+          ERRORS=0
+
+          for file in $(find docs -name "*.md" ! -path "docs/_templates/*" ! -name "index.md"); do
+            # Extract frontmatter
+            if ! head -1 "$file" | grep -q "^---$"; then
+              echo "ERROR: $file - Missing frontmatter"
+              ERRORS=$((ERRORS + 1))
+              continue
+            fi
+
+            # Check required fields
+            FRONTMATTER=$(sed -n '/^---$/,/^---$/p' "$file" | head -n -1 | tail -n +2)
+
+            if ! echo "$FRONTMATTER" | grep -q "^title:"; then
+              echo "ERROR: $file - Missing 'title' field"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            if ! echo "$FRONTMATTER" | grep -q "^feature_area:"; then
+              echo "ERROR: $file - Missing 'feature_area' field"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            if ! echo "$FRONTMATTER" | grep -q "^last_reviewed:"; then
+              echo "ERROR: $file - Missing 'last_reviewed' field"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            if ! echo "$FRONTMATTER" | grep -q "^owner:"; then
+              echo "ERROR: $file - Missing 'owner' field"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+
+          if [ $ERRORS -gt 0 ]; then
+            echo ""
+            echo "Found $ERRORS frontmatter errors"
+            exit 1
+          fi
+
+          echo "All frontmatter valid!"
+
+  staleness-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for stale docs
+        id: staleness
+        run: |
+          echo "Checking for docs older than 90 days..."
+          TODAY=$(date +%s)
+          STALE_DAYS=90
+          STALE_COUNT=0
+
+          for file in $(find docs -name "*.md" ! -path "docs/_templates/*" ! -name "index.md"); do
+            REVIEWED=$(sed -n '/^---$/,/^---$/p' "$file" | grep "^last_reviewed:" | cut -d: -f2 | tr -d ' ')
+
+            if [ -n "$REVIEWED" ]; then
+              REVIEWED_EPOCH=$(date -d "$REVIEWED" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$REVIEWED" +%s 2>/dev/null || echo "0")
+
+              if [ "$REVIEWED_EPOCH" != "0" ]; then
+                DIFF=$(( (TODAY - REVIEWED_EPOCH) / 86400 ))
+
+                if [ $DIFF -gt $STALE_DAYS ]; then
+                  echo "STALE: $file (last reviewed $DIFF days ago)"
+                  echo "$file ($DIFF days)" >> stale_docs.txt
+                  STALE_COUNT=$((STALE_COUNT + 1))
+                fi
+              fi
+            fi
+          done
+
+          echo "stale_count=$STALE_COUNT" >> $GITHUB_OUTPUT
+
+          if [ $STALE_COUNT -gt 0 ]; then
+            echo "Found $STALE_COUNT stale docs"
+          else
+            echo "No stale docs found!"
+          fi
+
+      - name: Create issue for stale docs
+        if: steps.staleness.outputs.stale_count != '0' && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const staleFiles = fs.readFileSync('stale_docs.txt', 'utf8');
+            const title = 'Stale documentation needs review';
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'stale-docs'
+            });
+
+            const body = `The following docs have not been reviewed in over 90 days:\n\n${staleFiles}\n\nPlease review and update the \`last_reviewed\` date.`;
+
+            if (issues.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `Weekly check:\n\n${staleFiles}`
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['stale-docs', 'documentation']
+              });
+            }
+
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install MkDocs
+        run: pip install mkdocs-material
+
+      - name: Build site
+        run: mkdocs build --strict
+
+      - name: Verify search index
+        run: |
+          if [ -f "site/search/search_index.json" ]; then
+            echo "Search index generated successfully"
+            SIZE=$(wc -c < site/search/search_index.json)
+            if [ $SIZE -lt 100 ]; then
+              echo "WARNING: Search index seems too small ($SIZE bytes)"
+              exit 1
+            fi
+            echo "Search index size: $SIZE bytes"
+          else
+            echo "ERROR: Search index not found!"
+            exit 1
+          fi
