@@ -5,7 +5,11 @@
  * using Playwright with authenticated sessions.
  *
  * Usage:
- *   npx ts-node scripts/capture-screenshots.ts [--file path/to/doc.md]
+ *   npx tsx capture-screenshots.ts [--file path/to/doc.md]
+ *
+ * For local dev:
+ *   - Auto-detects running Rails server on common ports
+ *   - Create scripts/.env for credentials (optional, has defaults)
  *
  * Screenshot marker format:
  *   <!-- SCREENSHOT: description of what to capture -->
@@ -19,11 +23,53 @@ import { chromium, Browser, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 import { glob } from 'glob';
-import { execFileSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
+import { config } from 'dotenv';
+
+// Load .env from scripts directory
+config({ path: path.join(__dirname, '.env') });
+
+// Auto-detect local Rails server port
+function detectLocalPort(): number | null {
+  const commonPorts = [3000, 3100, 3200, 3300, 55000, 55001, 55002, 55003, 55004, 55005];
+
+  for (const port of commonPorts) {
+    try {
+      // Check if port is in use by a Rails/Puma process
+      const result = execSync(
+        `lsof -i :${port} -sTCP:LISTEN 2>/dev/null | grep -E 'ruby|puma' || true`,
+        { encoding: 'utf-8', timeout: 2000 }
+      ).trim();
+
+      if (result) {
+        console.log(`Auto-detected Rails server on port ${port}`);
+        return port;
+      }
+    } catch {
+      // Port check failed, continue to next
+    }
+  }
+  return null;
+}
+
+// Determine base URL: explicit env var > auto-detect local > staging
+function getBaseUrl(): string {
+  if (process.env.APP_URL) {
+    return process.env.APP_URL;
+  }
+
+  const localPort = detectLocalPort();
+  if (localPort) {
+    return `http://127.0.0.1:${localPort}`;
+  }
+
+  console.log('No local server detected, using staging');
+  return 'https://staging.shopdirector.app';
+}
 
 // Configuration
 const CONFIG = {
-  baseUrl: process.env.APP_URL || 'https://staging.shopdirector.app',
+  baseUrl: getBaseUrl(),
   credentials: {
     email: process.env.DEMO_EMAIL || 'c1admin1@example.com',
     password: process.env.DEMO_PASSWORD || 'sd1234'
