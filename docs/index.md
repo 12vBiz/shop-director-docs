@@ -47,12 +47,6 @@ Get the most out of Shop Director with our comprehensive documentation.
 
 ---
 
-## Need to Log In?
+## Need Help?
 
-This help center requires an active Shop Director account.
-
-[Log in to Shop Director](https://app.shopdirector.app/login){ .md-button .md-button--primary }
-
----
-
-<small>Shop Director - Scheduling-first POS for 12-volt retail</small>
+Can't find what you're looking for? Use the search above or contact your shop administrator.
