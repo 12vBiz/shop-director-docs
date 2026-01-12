@@ -9,8 +9,7 @@
  */
 
 const COOKIE_NAME = 'docs_session';
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
-const PUBLIC_PATHS = ['/', '/index.html', '/assets/', '/search/'];
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export default {
   async fetch(request, env, ctx) {
@@ -26,11 +25,26 @@ export default {
       if (validation.valid) {
         // Valid token - set session cookie and redirect to clean URL
         url.searchParams.delete('token');
-        const response = Response.redirect(url.toString(), 302);
         const newSession = await createSession(validation.payload, env.DOCS_SIGNING_SECRET);
-        return addSessionCookie(response, newSession, url.hostname);
+
+        // Build redirect response manually (Response.redirect doesn't allow adding cookies)
+        const domainParts = url.hostname.split('.');
+        const rootDomain = domainParts.slice(-2).join('.');
+
+        const headers = new Headers();
+        headers.set('Location', url.toString());
+        headers.set('Set-Cookie',
+          `${COOKIE_NAME}=${newSession}; ` +
+          `Max-Age=${COOKIE_MAX_AGE}; ` +
+          `Path=/; ` +
+          `Domain=.${rootDomain}; ` +
+          `HttpOnly; ` +
+          `Secure; ` +
+          `SameSite=Lax`
+        );
+
+        return new Response(null, { status: 302, headers });
       }
-      // Invalid token - fall through to normal auth flow
     }
 
     // Allow public paths without auth (after token check)
@@ -136,8 +150,7 @@ async function validateRailsToken(token, secret) {
     }
 
     return { valid: true, payload: data };
-  } catch (e) {
-    console.error('Token validation error:', e);
+  } catch {
     return { valid: false };
   }
 }
@@ -209,7 +222,7 @@ async function isValidSession(sessionToken, secret) {
     }
 
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
