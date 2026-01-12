@@ -64,6 +64,8 @@ nav:
     - Appointments: scheduling/appointments.md
   - Customers:
     - Customer Management: customers/management.md
+  - Sales:
+    - Quick Sales: sales/quick-sales.md
 
 extra:
   generator: false
