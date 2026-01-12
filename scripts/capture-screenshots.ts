@@ -189,10 +189,15 @@ function addImageRefToMarkdown(
   const lines = content.split('\n');
   const markerLineIndex = lineNumber - 1;
 
-  // Check if image ref already exists on next line
-  const nextLine = lines[markerLineIndex + 1] || '';
-  if (nextLine.trim().startsWith('![')) {
-    return false; // Already has image ref
+  // Check if image ref already exists (skip blank lines)
+  for (let i = markerLineIndex + 1; i < Math.min(markerLineIndex + 4, lines.length); i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('![')) {
+      return false; // Already has image ref
+    }
+    if (line && !line.startsWith('![')) {
+      break; // Found non-empty non-image line, no existing ref
+    }
   }
 
   // Generate relative path and markdown image ref
@@ -239,7 +244,8 @@ function inferPath(description: string): string {
   const pathMappings: Record<string, string> = {
     'quote': '/quotes',
     'quotes': '/quotes',
-    'calendar': '/calendar',
+    'calendar': '/appointments',
+    'schedule': '/appointments',
     'appointment': '/appointments',
     'customer': '/customers',
     'inventory': '/inventory',
