@@ -21,11 +21,18 @@
  *   <!-- SCREENSHOT: /path | description -->
  *   <!-- SCREENSHOT: /path | description | highlight:.selector -->
  *   <!-- SCREENSHOT: /path | description | highlight:.btn-primary,#submit -->
+ *   <!-- SCREENSHOT: /path | description | highlight:.btn | maxarrows:5 -->
  *
  * Highlight selectors:
  *   - Any valid CSS selector (.class, #id, [data-attr], etc.)
  *   - Multiple selectors separated by commas
- *   - Elements get orange outline + subtle background highlight
+ *   - Elements get green outline + subtle background highlight
+ *
+ * Arrow limiting (default: 3 max):
+ *   - Priority: action buttons > CTA text > form inputs (DOM order)
+ *   - Proximity: skips arrows within 50px of each other
+ *   - Override: maxarrows:N in marker (e.g., maxarrows:5)
+ *   - Minimum: Forces 1 arrow if highlights exist but none qualify
  *
  * GIF marker format:
  *   <!-- GIF: step1 | step2 | step3 -->
@@ -102,6 +109,7 @@ interface ScreenshotMarker {
   path?: string;
   steps?: string[];
   highlights?: string[];  // CSS selectors to highlight
+  maxArrows?: number;     // Override max arrows (default: 3)
   sourceFile: string;
   lineNumber: number;
 }
@@ -132,8 +140,22 @@ function parseMarkdownFile(filePath: string): ScreenshotMarker[] {
           .filter(s => s.length > 0);
       }
 
-      // Remove highlight part from parts array for path/description parsing
-      const contentParts = parts.filter(p => !p.startsWith('highlight:'));
+      // Parse maxarrows override if present
+      let maxArrows: number | undefined;
+      const maxArrowsPart = parts.find(p => p.startsWith('maxarrows:'));
+      if (maxArrowsPart) {
+        const parsed = parseInt(maxArrowsPart.replace('maxarrows:', '').trim(), 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          maxArrows = parsed;
+        }
+      }
+
+      // Remove special parts from array for path/description parsing
+      const contentParts = parts.filter(p =>
+        !p.startsWith('highlight:') &&
+        !p.startsWith('maxarrows:') &&
+        !p.startsWith('arrow:')
+      );
 
       if (contentParts.length >= 2 && contentParts[0].startsWith('/')) {
         markers.push({
@@ -141,6 +163,7 @@ function parseMarkdownFile(filePath: string): ScreenshotMarker[] {
           path: contentParts[0],
           description: contentParts[1],
           highlights,
+          maxArrows,
           sourceFile: filePath,
           lineNumber: index + 1
         });
@@ -149,6 +172,7 @@ function parseMarkdownFile(filePath: string): ScreenshotMarker[] {
           type: 'screenshot',
           description: contentParts[0],
           highlights,
+          maxArrows,
           sourceFile: filePath,
           lineNumber: index + 1
         });
@@ -271,15 +295,119 @@ interface ArrowTarget {
   y: number;
   width: number;
   height: number;
+  selector: string;
+  priority: number;
+  text?: string;
 }
 
 interface HighlightResult {
   targets: ArrowTarget[];
   count: number;
+  skipped: string[];  // Selectors of elements that were skipped
 }
 
-// Apply highlight styles and collect arrow targets
-async function applyHighlights(page: Page, selectors: string[]): Promise<HighlightResult> {
+const DEFAULT_MAX_ARROWS = 3;
+const PROXIMITY_PADDING = 50;  // Bounding box expansion for proximity check
+
+// Priority scoring for arrow targets
+// Higher score = more important = gets arrow first
+function scoreElement(selector: string, text: string, tagName: string, type: string): number {
+  let score = 0;
+
+  // Highest priority: explicit arrow directive (handled separately)
+
+  // Primary action buttons
+  if (selector.includes('.btn-primary') || selector.includes('btn-primary')) score += 100;
+  if (type === 'submit') score += 90;
+  if (tagName === 'BUTTON' || tagName === 'A') score += 20;
+
+  // CTA text patterns
+  const ctaPatterns = /create|save|submit|add|new|confirm|update|delete|remove/i;
+  if (ctaPatterns.test(text)) score += 50;
+
+  // Form inputs get base score (will be ordered by DOM position)
+  if (tagName === 'INPUT' || tagName === 'SELECT' || tagName === 'TEXTAREA') score += 10;
+
+  return score;
+}
+
+// Check if two bounding boxes are in proximity (overlap when expanded)
+function isInProximity(box1: ArrowTarget, box2: ArrowTarget): boolean {
+  const pad = PROXIMITY_PADDING;
+
+  // Expand both boxes by padding
+  const b1 = {
+    left: box1.x - pad,
+    right: box1.x + box1.width + pad,
+    top: box1.y - pad,
+    bottom: box1.y + box1.height + pad
+  };
+
+  const b2 = {
+    left: box2.x - pad,
+    right: box2.x + box2.width + pad,
+    top: box2.y - pad,
+    bottom: box2.y + box2.height + pad
+  };
+
+  // Check for overlap
+  return !(b1.right < b2.left || b1.left > b2.right || b1.bottom < b2.top || b1.top > b2.bottom);
+}
+
+// Filter arrow targets by priority and proximity
+function filterArrowTargets(
+  targets: ArrowTarget[],
+  maxArrows: number,
+  forceMinimum: boolean
+): { selected: ArrowTarget[]; skipped: string[] } {
+  if (targets.length === 0) {
+    return { selected: [], skipped: [] };
+  }
+
+  // Sort by priority (descending), then by DOM position (y, then x)
+  const sorted = [...targets].sort((a, b) => {
+    if (b.priority !== a.priority) return b.priority - a.priority;
+    if (a.y !== b.y) return a.y - b.y;  // Top to bottom
+    return a.x - b.x;  // Left to right
+  });
+
+  const selected: ArrowTarget[] = [];
+  const skipped: string[] = [];
+
+  for (const target of sorted) {
+    // Check if we've hit the max
+    if (selected.length >= maxArrows) {
+      skipped.push(target.selector);
+      continue;
+    }
+
+    // Check proximity to already selected targets
+    const tooClose = selected.some(s => isInProximity(s, target));
+    if (tooClose) {
+      skipped.push(target.selector);
+      continue;
+    }
+
+    selected.push(target);
+  }
+
+  // Force minimum: if we have targets but none selected, force the top priority one
+  if (forceMinimum && selected.length === 0 && sorted.length > 0) {
+    selected.push(sorted[0]);
+    // Remove from skipped if it was there
+    const idx = skipped.indexOf(sorted[0].selector);
+    if (idx >= 0) skipped.splice(idx, 1);
+  }
+
+  return { selected, skipped };
+}
+
+// Apply highlight styles and collect arrow targets with filtering
+async function applyHighlights(
+  page: Page,
+  selectors: string[],
+  maxArrows: number = DEFAULT_MAX_ARROWS
+): Promise<HighlightResult> {
   const viewport = page.viewportSize();
   const viewportArea = (viewport?.width || 1400) * (viewport?.height || 900);
   const smallElementThreshold = viewportArea * 0.10; // 10% of screen
@@ -305,11 +433,11 @@ async function applyHighlights(page: Page, selectors: string[]): Promise<Highlig
     `
   });
 
-  // Collect elements that need arrows (small elements)
-  const arrowTargets: ArrowTarget[] = [];
+  // Collect ALL elements with metadata for scoring
+  const allCandidates: ArrowTarget[] = [];
   let totalHighlighted = 0;
 
-  // Add highlight class to matching elements
+  // Add highlight class and collect element metadata
   for (const selector of selectors) {
     try {
       const elements = await page.locator(selector).all();
@@ -317,12 +445,26 @@ async function applyHighlights(page: Page, selectors: string[]): Promise<Highlig
         await element.evaluate(el => el.classList.add('sd-docs-highlight'));
         totalHighlighted++;
 
-        // Check if element is small enough for an arrow
         const box = await element.boundingBox();
         if (box) {
           const elementArea = box.width * box.height;
+          // Only consider small elements for arrows
           if (elementArea < smallElementThreshold) {
-            arrowTargets.push(box);
+            // Get element metadata for scoring
+            const metadata = await element.evaluate(el => ({
+              tagName: el.tagName,
+              type: (el as HTMLInputElement).type || '',
+              text: el.textContent?.trim().slice(0, 50) || ''
+            }));
+
+            const priority = scoreElement(selector, metadata.text, metadata.tagName, metadata.type);
+
+            allCandidates.push({
+              ...box,
+              selector,
+              priority,
+              text: metadata.text
+            });
           }
         }
       }
@@ -332,7 +474,15 @@ async function applyHighlights(page: Page, selectors: string[]): Promise<Highlig
     }
   }
 
-  return { targets: arrowTargets, count: totalHighlighted };
+  // Apply filtering: priority + proximity + max limit
+  const forceMinimum = totalHighlighted > 0;  // Force 1 arrow if we have any highlights
+  const { selected, skipped } = filterArrowTargets(allCandidates, maxArrows, forceMinimum);
+
+  if (skipped.length > 0) {
+    console.log(`  ⚠️ ${skipped.length} arrow(s) skipped (proximity/limit)`);
+  }
+
+  return { targets: selected, count: totalHighlighted, skipped };
 }
 
 type ArrowDirection = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -425,6 +575,7 @@ async function addArrowsToImage(
 interface ScreenshotResult {
   path: string;
   highlightCount: number;
+  skippedArrows: string[];
 }
 
 async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<ScreenshotResult> {
@@ -441,11 +592,14 @@ async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<
 
   let highlightCount = 0;
   let arrowTargets: ArrowTarget[] = [];
+  let skippedArrows: string[] = [];
 
   if (marker.highlights?.length) {
-    const result = await applyHighlights(page, marker.highlights);
+    const maxArrows = marker.maxArrows ?? DEFAULT_MAX_ARROWS;
+    const result = await applyHighlights(page, marker.highlights, maxArrows);
     arrowTargets = result.targets;
     highlightCount = result.count;
+    skippedArrows = result.skipped;
   }
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -457,7 +611,7 @@ async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<
     await addArrowsToImage(outputPath, arrowTargets, viewport.width, viewport.height);
   }
 
-  return { path: outputPath, highlightCount };
+  return { path: outputPath, highlightCount, skippedArrows };
 }
 
 async function captureGif(page: Page, marker: ScreenshotMarker): Promise<string> {

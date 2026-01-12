@@ -68,12 +68,18 @@ owner: ai | human | ai-generated
 <!-- SCREENSHOT: /path | Description -->
 <!-- SCREENSHOT: /path | Description | highlight:selector1,selector2 -->
 <!-- SCREENSHOT: /path | Description | highlight:selector | arrow:bottom-right -->
+<!-- SCREENSHOT: /path | Description | highlight:selector | maxarrows:5 -->
 <!-- GIF: /step1 | /step2 | /step3 -->
 ```
 
 **Highlight parameter:** CSS selectors for elements to highlight with green outline. Small elements (<10% viewport) automatically get arrows.
 
-**Arrow override:** Direction keyword when auto-positioning doesn't work well.
+**Arrow limiting (default: 3 max):**
+- Priority: action buttons > CTA text > form inputs (DOM order)
+- Proximity: skips arrows within 50px of each other
+- Override: `maxarrows:N` to allow more (e.g., `maxarrows:5`)
+
+**Arrow direction override:** When auto-positioning doesn't work well.
 - `arrow:bottom-right` (default)
 - `arrow:bottom-left`
 - `arrow:top-right`
