@@ -47,9 +47,9 @@ Once a quote is approved:
 2. Click **Convert to Order**
 3. The quote becomes an order ready for scheduling
 
-<!-- SCREENSHOT: /quotes/1 | Quote with convert button | highlight:a[href*="convert"],.btn-success -->
+<!-- SCREENSHOT: /quotes/1 | Quote with action buttons | highlight:button,a.inline-flex -->
 
-![Quote with convert button](../assets/images/quotes/quote-with-convert-button.png)
+![Quote with action buttons](../assets/images/quotes/quote-with-action-buttons.png)
 
 ## Tips
 

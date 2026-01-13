@@ -586,9 +586,9 @@ async function captureScreenshot(page: Page, marker: ScreenshotMarker): Promise<
   console.log(`  Path: ${targetPath}`);
   console.log(`  Output: ${outputPath}`);
 
-  await page.goto(`${CONFIG.baseUrl}${targetPath}`);
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(500);
+  await page.goto(`${CONFIG.baseUrl}${targetPath}`, { timeout: 60000 });
+  await page.waitForLoadState('networkidle', { timeout: 60000 });
+  await page.waitForTimeout(1000);
 
   let highlightCount = 0;
   let arrowTargets: ArrowTarget[] = [];
@@ -631,9 +631,9 @@ async function captureGif(page: Page, marker: ScreenshotMarker): Promise<string>
     const framePath = path.join(tempDir, `frame-${i.toString().padStart(3, '0')}.png`);
     const targetPath = step.startsWith('/') ? step : inferPath(step);
 
-    await page.goto(`${CONFIG.baseUrl}${targetPath}`);
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(300);
+    await page.goto(`${CONFIG.baseUrl}${targetPath}`, { timeout: 60000 });
+    await page.waitForLoadState('networkidle', { timeout: 60000 });
+    await page.waitForTimeout(500);
     await page.screenshot({ path: framePath });
 
     console.log(`  Frame ${i + 1}/${marker.steps.length}: ${step}`);
@@ -722,6 +722,9 @@ async function main(): Promise<void> {
           sourceFile: marker.sourceFile,
           lineNumber: marker.lineNumber
         });
+
+        // Delay between captures to avoid overwhelming server
+        await page.waitForTimeout(2000);
       } catch (error) {
         console.error(`Failed to capture: ${marker.description}`, error);
         results.push({

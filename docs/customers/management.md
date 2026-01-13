@@ -34,7 +34,7 @@ Each customer profile shows:
 - Order history
 - Notes
 
-<!-- SCREENSHOT: /customers/1 | Customer profile | highlight:.card,.nav-tabs -->
+<!-- SCREENSHOT: /customers/1 | Customer profile | highlight:h3 -->
 
 ![Customer profile](../assets/images/customers/customer-profile.png)
 

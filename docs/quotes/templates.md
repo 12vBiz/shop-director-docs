@@ -19,7 +19,7 @@ Templates are pre-configured quotes with common products and services. Use them 
 2. Click **Save as Template**
 3. Give it a descriptive name
 
-<!-- SCREENSHOT: /quotes/1 | Save as template button | highlight:a[href*="template"],.dropdown-item -->
+<!-- SCREENSHOT: /quotes/1 | Save as template button -->
 
 ![Save as template button](../assets/images/quotes/save-as-template-button.png)
 

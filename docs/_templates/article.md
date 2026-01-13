@@ -26,6 +26,8 @@ Description of the first step.
 
 <!-- SCREENSHOT: description of what to capture -->
 
+![description of what to capture](../assets/images/_templates/description-of-what-to-capture.png)
+
 ### Step 2: Second Action
 
 Description of the second step.

@@ -27,7 +27,7 @@ Your dashboard shows today's schedule at a glance:
 - **Recent quotes** - Quick access to quotes awaiting approval
 - **Bay status** - Current installation bay availability
 
-<!-- SCREENSHOT: /dashboard | Dashboard overview | highlight:.dashboard-widget,.card-header -->
+<!-- SCREENSHOT: /dashboard | Dashboard overview | highlight:dl,dt -->
 
 ![Dashboard overview](../assets/images/getting-started/dashboard-overview.png)
 

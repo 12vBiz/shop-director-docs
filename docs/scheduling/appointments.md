@@ -48,6 +48,6 @@ When the job is done:
 3. Add any final notes
 4. Generate invoice
 
-<!-- SCREENSHOT: /work_orders/1 | Work order with complete button | highlight:a[href*="complete"],.btn-success -->
+<!-- SCREENSHOT: /work_orders/1 | Work order with action buttons | highlight:button.bg-green-600,button.bg-yellow-600 -->
 
-![Work order with complete button](../assets/images/scheduling/work-order-with-complete-button.png)
+![Work order with action buttons](../assets/images/scheduling/work-order-with-action-buttons.png)
