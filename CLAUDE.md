@@ -87,6 +87,15 @@ owner: ai | human | ai-generated
 
 **Arrow style:** 10px green line (#22c55e), 32×38px triangle arrowhead.
 
+**Selector guidance (Shop Director uses Tailwind only):**
+- No semantic classes like `.card`, `.btn-success`, `.nav-tabs` - use actual Tailwind classes
+- Action buttons: `button.bg-green-600`, `button.bg-yellow-600`, `button.bg-red-600`
+- Form elements: `input[type="submit"]`, `select`, `input[type="search"]`
+- Links: `a[href*="path"]`, `a.inline-flex`
+- Structural: `h3`, `dl`, `dt`, `table`
+- When in doubt, omit highlights (page captures without arrows still work)
+- To find selectors: inspect staging app in browser DevTools
+
 CI captures screenshots automatically on PR from staging app.
 
 **Local capture:**
